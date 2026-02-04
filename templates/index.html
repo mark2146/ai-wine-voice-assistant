@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI 紅酒櫃</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+
+<body>
+  <div class="layout">
+    <!-- Left -->
+    <aside class="brand">
+      <div class="brand__logo">🍷</div>
+      <div class="brand__name">AI 紅酒櫃</div>
+      <div class="brand__tag">語音助理 / RAG</div>
+    </aside>
+
+    <!-- Center -->
+    <main class="card">
+      <header class="card__header">
+        <div class="card__title">語音互動</div>
+        <div id="status" class="status">尚未啟動</div>
+      </header>
+
+      <div class="card__body">
+        <button id="startBtn" class="btn">
+          <span class="btn__icon">▶</span>
+          <span>開始使用</span>
+        </button>
+
+        <div class="hint">
+          <div>流程：按下開始 → Enter 開始對話</div>
+          <div class="hint__sub">（建議戴耳機避免回音誤收音）</div>
+        </div>
+
+        <audio id="player"></audio>
+      </div>
+    </main>
+
+    <!-- Right -->
+    <aside class="chat">
+      <div class="chat__title">對話紀錄</div>
+      <div class="chat__log" id="chatLog">
+      </div>
+    </aside>
+  </div>
+
+  <script src="/static/main.js"></script>
+</body>
+</html>
