@@ -36,70 +36,57 @@ KB_DIR = os.path.join(BASE_DIR, "kb")
 INDEX_PATH = os.path.join(BASE_DIR, "kb.index")
 META_PATH = os.path.join(BASE_DIR, "kb_texts.json")
 
-
 class StreamingTextChunker:
 
-    def __init__(self, soft_limit=20, hard_limit=40):
+    def __init__(self, min_chars=20):
         self.buffer = ""
-        self.soft_limit = soft_limit
-        self.hard_limit = hard_limit
+        self.min_chars = min_chars
 
-    def push(self, new_text):
-        self.buffer += new_text
-        ready = []
+    def push(self, text):
 
-        while True:
-            chunk = self._extract_chunk()
-            if chunk is None:
-                break
-            ready.append(chunk)
+        self.buffer += text
 
-        return ready
+        # 優先找中文停頓符
+        split_chars = "，。！？,.!? "
 
-    def flush(self):
-        if self.buffer.strip():
-            out = self.buffer.strip()
-            self.buffer = ""
-            return [out]
-        return []
+        if len(self.buffer) < self.min_chars:
+            return None
 
-    def _extract_chunk(self):
-
-        # 強切
-        m = re.search(r'[。！？!?]', self.buffer)
-        if m:
-            idx = m.end()
-            out = self.buffer[:idx]
-            self.buffer = self.buffer[idx:]
-            return out.strip()
-
-        # 軟切
-        if len(self.buffer) >= self.soft_limit:
-            m = re.search(r'[，,、]', self.buffer)
-            if m:
-                idx = m.end()
-                out = self.buffer[:idx]
-                self.buffer = self.buffer[idx:]
-                return out.strip()
-
-        # fallback
-        if len(self.buffer) >= self.hard_limit:
-            out = self.buffer[:self.hard_limit]
-            self.buffer = self.buffer[self.hard_limit:]
-            return out.strip()
+        for i, ch in enumerate(self.buffer):
+            if ch in split_chars and i >= self.min_chars:
+                chunk = self.buffer[:i+1]
+                self.buffer = self.buffer[i+1:]
+                return chunk
 
         return None
-def stream_tts_from_text(text):
+
+    def flush(self):
+        if self.buffer:
+            chunk = self.buffer
+            self.buffer = ""
+            return chunk
+        return None
+    
+def pipeline_tts_stream(text):
+
     chunker = StreamingTextChunker()
 
-    # 模擬 token streaming（目前先整段切）
-    for ch in text:
-        chunks = chunker.push(ch)
-        for chunk in chunks:
-            yield text_to_speech_wav_bytes(chunk)
+    # 模擬 GPT streaming（目前先用整段文字）
+    for token in text:
 
-    for chunk in chunker.flush():
-        yield text_to_speech_wav_bytes(chunk)
+        chunk = chunker.push(token)
+
+        if chunk:
+            print("🎤 TTS chunk:", chunk)
+
+            audio = text_to_speech_wav_bytes(chunk)
+            yield audio
+
+    # flush
+    last = chunker.flush()
+    if last:
+        yield text_to_speech_wav_bytes(last)
+   
 # -------------------------
 # STT
 # -------------------------

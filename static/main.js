@@ -8,6 +8,7 @@ let recording = false;
 
 // LOCKED → ARMED → SESSION
 let systemState = "LOCKED";
+let audioBusy = false;
 
 const SAMPLE_RATE = 16000;
 const SILENCE_THRESHOLD = 0.008;
@@ -173,18 +174,31 @@ async function sendTextTTS(text) {
   if (!res.ok) throw new Error(await res.text());
   return await res.blob();
 }
-
 function playAudio(blob) {
   if (!blob || blob.size < 1000) {
     console.error("❌ Invalid audio blob");
     return Promise.resolve();
   }
 
+  audioBusy = true;
+
   return new Promise(resolve => {
     player.src = URL.createObjectURL(blob);
-    player.onended = resolve;
-    player.onerror = () => resolve();
-    player.play().catch(() => resolve());
+
+    player.onended = () => {
+      audioBusy = false;
+      resolve();
+    };
+
+    player.onerror = () => {
+      audioBusy = false;
+      resolve();
+    };
+
+    player.play().catch(() => {
+      audioBusy = false;
+      resolve();
+    });
   });
 }
 async function playStream(response) {
@@ -231,6 +245,12 @@ async function startSession() {
   await sleep(1500);
 
   while (systemState === "SESSION") {
+
+    // ⭐⭐⭐ 這段就是新增的
+    while (audioBusy) {
+        await sleep(100);
+    }
+
     statusEl.textContent = "🎧 收音中…";
     await sleep(300);
 

@@ -7,7 +7,7 @@ from fastapi import Body
 from dotenv import load_dotenv
 load_dotenv()   # ⬅⬅⬅ 一定要在最前面
 from urllib.parse import quote
-from ai_wine_web.rag import stream_tts_from_text
+from rag import pipeline_tts_stream
 
 from ai_wine_web.rag import (
     build_index,
@@ -45,32 +45,39 @@ async def index_page(request: Request):
 # Chat API
 # =========================================================
 @app.post("/chat")
-async def chat(audio: UploadFile):
+async def chat(audio: UploadFile = File(...)):
 
+    # ⭐ 讀取音訊
     wav_bytes = await audio.read()
 
+    # ⭐ STT（直接吃 bytes）
     user_text = speech_to_text(wav_bytes)
 
+    # ⭐ 防呆
     if not user_text:
-        return StreamingResponse(io.BytesIO(b""), media_type="audio/wav")
+        return StreamingResponse(
+            iter([b""]),
+            media_type="audio/mpeg"
+        )
 
-    context = rag_search(user_text, index, texts)
+    # ⭐ RAG + GPT
+    context = rag_search(user_text, index, texts, k=2)
     answer = ask_gpt(user_text, context)
 
-    print("[GPT]", answer)
-
-    def audio_generator():
-        for chunk in stream_tts_from_text(answer):
-            yield chunk
-
+    # ⭐ header 傳文字給前端
     headers = {
         "X-User-Text": quote(user_text),
-        "X-AI-Text": quote(answer),
+        "X-AI-Text": quote(answer)
     }
+
+    # ⭐ Pipeline TTS Streaming
+    def audio_generator():
+        for chunk in pipeline_tts_stream(answer):
+            yield chunk
 
     return StreamingResponse(
         audio_generator(),
-        media_type="audio/wav",
+        media_type="audio/mpeg",
         headers=headers
     )
         
