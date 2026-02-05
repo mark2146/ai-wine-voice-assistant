@@ -7,7 +7,7 @@ from fastapi import Body
 from dotenv import load_dotenv
 load_dotenv()   # ⬅⬅⬅ 一定要在最前面
 from urllib.parse import quote
-from rag import pipeline_tts_stream
+from ai_wine_web.rag import pipeline_tts_stream
 
 from ai_wine_web.rag import (
     build_index,
