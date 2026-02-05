@@ -203,23 +203,25 @@ function playAudio(blob) {
 }
 async function playStream(response) {
 
+  audioBusy = true;
+
   const reader = response.body.getReader();
 
   const mediaSource = new MediaSource();
   player.src = URL.createObjectURL(mediaSource);
 
-  await new Promise(resolve => {
+  return new Promise(resolve => {
 
     mediaSource.addEventListener("sourceopen", async () => {
 
       const sourceBuffer = mediaSource.addSourceBuffer("audio/mpeg");
 
       while (true) {
+
         const { done, value } = await reader.read();
 
         if (done) {
           mediaSource.endOfStream();
-          resolve();
           break;
         }
 
@@ -227,13 +229,29 @@ async function playStream(response) {
           sourceBuffer.addEventListener("updateend", r, { once: true });
           sourceBuffer.appendBuffer(value);
         });
+
       }
 
     });
 
+    // ⭐ 真正播放結束才解除
+    player.onended = () => {
+      audioBusy = false;
+      resolve();
+    };
+
+    player.onerror = () => {
+      audioBusy = false;
+      resolve();
+    };
+
+    player.play().catch(() => {
+      audioBusy = false;
+      resolve();
+    });
+
   });
 
-  await player.play();
 }
 
 async function startSession() {
