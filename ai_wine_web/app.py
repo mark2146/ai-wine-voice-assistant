@@ -1,14 +1,13 @@
-# app.py
-from fastapi import FastAPI, UploadFile, Request
+from fastapi import FastAPI, UploadFile, Request, File, Body
 from fastapi.responses import StreamingResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-import io
-from fastapi import Body
 from dotenv import load_dotenv
-load_dotenv()   # ⬅⬅⬅ 一定要在最前面
 from urllib.parse import quote
-from ai_wine_web.rag import pipeline_tts_stream
+import io
 
+load_dotenv()
+
+from ai_wine_web.rag import pipeline_tts_stream
 from ai_wine_web.rag import (
     build_index,
     speech_to_text,
