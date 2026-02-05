@@ -7,6 +7,7 @@ from fastapi import Body
 from dotenv import load_dotenv
 load_dotenv()   # ⬅⬅⬅ 一定要在最前面
 from urllib.parse import quote
+from ai_wine_web.rag import stream_tts_from_text
 
 from ai_wine_web.rag import (
     build_index,
@@ -45,35 +46,30 @@ async def index_page(request: Request):
 # =========================================================
 @app.post("/chat")
 async def chat(audio: UploadFile):
+
     wav_bytes = await audio.read()
 
-    # STT
     user_text = speech_to_text(wav_bytes)
-    print(f"[STT] user_text = {user_text!r}")
 
     if not user_text:
-        print("[STT] empty text, return empty audio")
-        return StreamingResponse(
-            io.BytesIO(b""),
-            media_type="audio/wav"
-        )
+        return StreamingResponse(io.BytesIO(b""), media_type="audio/wav")
 
-    # RAG + GPT
     context = rag_search(user_text, index, texts)
     answer = ask_gpt(user_text, context)
 
-    print(f"[GPT] answer = {answer!r}")
+    print("[GPT]", answer)
 
-    # TTS
-    tts_bytes = text_to_speech_wav_bytes(answer)
+    def audio_generator():
+        for chunk in stream_tts_from_text(answer):
+            yield chunk
 
     headers = {
-    "X-User-Text": quote(user_text),
-    "X-AI-Text": quote(answer),
-}
+        "X-User-Text": quote(user_text),
+        "X-AI-Text": quote(answer),
+    }
 
     return StreamingResponse(
-        io.BytesIO(tts_bytes),
+        audio_generator(),
         media_type="audio/wav",
         headers=headers
     )

@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-python-multipart
-openai
-faiss-cpu
-numpy
-soundfile
-resampy

@@ -4,6 +4,7 @@ import numpy as np
 import soundfile as sf
 import faiss
 from openai import OpenAI
+import re
 
 # -------------------------
 # API KEY（只允許 env）
@@ -22,6 +23,10 @@ EMBED_MODEL = "text-embedding-3-small"
 STT_MODEL = "gpt-4o-transcribe"
 TTS_MODEL = "gpt-4o-mini-tts"
 TTS_VOICE = "alloy"
+# alloy      → 中性 AI 聲
+# verse      → 比較自然敘事感
+# aria       → 偏女性
+# sage       → 偏成熟沉穩
 
 # -------------------------
 # Paths
@@ -31,6 +36,70 @@ KB_DIR = os.path.join(BASE_DIR, "kb")
 INDEX_PATH = os.path.join(BASE_DIR, "kb.index")
 META_PATH = os.path.join(BASE_DIR, "kb_texts.json")
 
+
+class StreamingTextChunker:
+
+    def __init__(self, soft_limit=20, hard_limit=40):
+        self.buffer = ""
+        self.soft_limit = soft_limit
+        self.hard_limit = hard_limit
+
+    def push(self, new_text):
+        self.buffer += new_text
+        ready = []
+
+        while True:
+            chunk = self._extract_chunk()
+            if chunk is None:
+                break
+            ready.append(chunk)
+
+        return ready
+
+    def flush(self):
+        if self.buffer.strip():
+            out = self.buffer.strip()
+            self.buffer = ""
+            return [out]
+        return []
+
+    def _extract_chunk(self):
+
+        # 強切
+        m = re.search(r'[。！？!?]', self.buffer)
+        if m:
+            idx = m.end()
+            out = self.buffer[:idx]
+            self.buffer = self.buffer[idx:]
+            return out.strip()
+
+        # 軟切
+        if len(self.buffer) >= self.soft_limit:
+            m = re.search(r'[，,、]', self.buffer)
+            if m:
+                idx = m.end()
+                out = self.buffer[:idx]
+                self.buffer = self.buffer[idx:]
+                return out.strip()
+
+        # fallback
+        if len(self.buffer) >= self.hard_limit:
+            out = self.buffer[:self.hard_limit]
+            self.buffer = self.buffer[self.hard_limit:]
+            return out.strip()
+
+        return None
+def stream_tts_from_text(text):
+    chunker = StreamingTextChunker()
+
+    # 模擬 token streaming（目前先整段切）
+    for ch in text:
+        chunks = chunker.push(ch)
+        for chunk in chunks:
+            yield text_to_speech_wav_bytes(chunk)
+
+    for chunk in chunker.flush():
+        yield text_to_speech_wav_bytes(chunk)
 # -------------------------
 # STT
 # -------------------------
@@ -72,7 +141,8 @@ def text_to_speech_wav_bytes(text: str) -> bytes:
     audio_response = client.audio.speech.create(
         model=TTS_MODEL,
         voice=TTS_VOICE,
-        input=text
+        input=text,
+        speed=1.05
     )
     return audio_response.read()
 

@@ -133,6 +133,7 @@ function stopRecording(resolve, hasSpoken) {
    BACKEND COMM
 ========================= */
 async function sendAudio(samples) {
+
   const wav = encodeWAV(samples, SAMPLE_RATE);
   const blob = new Blob([wav], { type: "audio/wav" });
 
@@ -142,14 +143,15 @@ async function sendAudio(samples) {
   const res = await fetch("/chat", { method: "POST", body: fd });
   if (!res.ok) throw new Error(await res.text());
 
-  // ✅ 從 header 讀文字
+  // header文字保持
   const userText = decodeURIComponent(res.headers.get("X-User-Text") || "");
   const aiText = decodeURIComponent(res.headers.get("X-AI-Text") || "");
 
   if (userText) appendChat("你", userText);
   if (aiText) appendChat("AI", aiText);
 
-  return await res.blob();
+  // ⭐ 直接串流播放
+  await playStream(res);
 }
 function appendChat(role, text) {
   const log = document.getElementById("chatLog");
@@ -185,6 +187,40 @@ function playAudio(blob) {
     player.play().catch(() => resolve());
   });
 }
+async function playStream(response) {
+
+  const reader = response.body.getReader();
+
+  const mediaSource = new MediaSource();
+  player.src = URL.createObjectURL(mediaSource);
+
+  await new Promise(resolve => {
+
+    mediaSource.addEventListener("sourceopen", async () => {
+
+      const sourceBuffer = mediaSource.addSourceBuffer("audio/mpeg");
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          mediaSource.endOfStream();
+          resolve();
+          break;
+        }
+
+        await new Promise(r => {
+          sourceBuffer.addEventListener("updateend", r, { once: true });
+          sourceBuffer.appendBuffer(value);
+        });
+      }
+
+    });
+
+  });
+
+  await player.play();
+}
 
 async function startSession() {
   systemState = "SESSION";
@@ -217,8 +253,8 @@ async function startSession() {
     noSpeechCount = 0;
 
     statusEl.textContent = "🤖 思考中…";
-    const reply = await sendAudio(audio);
-    await playAudio(reply);
+    await sendAudio(audio);
+
 
     // ★ 非常重要：播放完後冷卻
     statusEl.textContent = "⏸ 等待中…";
